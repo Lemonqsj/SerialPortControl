@@ -31,6 +31,8 @@ public class MainActivity extends AppCompatActivity {
     String close = "FF FF 0A 00 00 00 00 00 01 01 4D 03 5C";
     String highFan = "FF FF 0C 00 00 00 00 00 01 01 5D 07 00 00 72 ";
     String query = "FF FF 0A 00 00 00 00 00 01 01 4D 01 5A";
+    public static volatile boolean isWrite = false;
+    public static volatile boolean isRead = false;
 
     private DataParse dataParse;
 //    private Handler handler;
@@ -177,8 +179,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void run() {
-
-
+                isRead=true;
 
                 len = mSerial.read(rbuf);
                 if (len < 0) {
@@ -190,22 +191,43 @@ public class MainActivity extends AppCompatActivity {
 //                } catch (InterruptedException e) {
 //                    e.printStackTrace();
 //                }
-
-                if (len>0&&len<10){
-                    Log.d(TAG, "Fail to bulkTransfer(读取丢失数据)读取到的数据长度为："+len);
-                    len = mSerial.read(rbuf);
+                if (len>37){
+                    Log.d(TAG, "Fail to bulkTransfer(读取丢失数据)读取到的数据长度为：" + len);
                 }
 
-                if (len > 0) {
+//                if (len>0&&len<37){
+//                    len1 = mSerial.read(rbuf2);
+//                }
+
+//                if (len+len1==37){
+//                    for (int j = 0; j < len; j++) {
+//
+//                        sbHex.append(HexDump.byte2Hex(rbuf[j]) + " ");
+//                    }
+//                    for (int j = 0; j < len1; j++) {
+//
+//                        sbHex.append(HexDump.byte2Hex(rbuf2[j]) + " ");
+//                    }
+//                }
+
+                while (len > 0 && len < 37 ) {
+                    Log.d(TAG, "Fail to bulkTransfer(读取丢失数据)读取到的数据长度为：" + len);
+                    len= mSerial.read(rbuf);
+                }
+
+                if (len ==37) {
                     Log.d(TAG, "read len : " + len);
                     for (int j = 0; j < len; j++) {
 
                         sbHex.append(HexDump.byte2Hex(rbuf[j]) + " ");
                     }
                     Log.d(TAG, "len=" + len + "....receive data " + sbHex.toString());
+                    isRead=false;
+//                    Log.d(TAG, "--------------------------------------read data end  -----------------------");
+                }
 
-                    Log.d(TAG, "--------------------------------------read data end  -----------------------");
-                } else if (len == 0) {
+
+                else if (len == 0) {
 //                    Log.d(TAG, "read len : 0 ");
 
 //                    this.run();
@@ -215,8 +237,13 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-//        mInstructionIOThreadPool.execute(runnable);
-        mExecutorService.execute(runnable);
+        while (true) {
+            if (!isWrite||!isRead) {
+                mExecutorService.execute(runnable);
+                break;
+            }
+        }
+
 
         try {
             Thread.sleep(50);
@@ -246,6 +273,7 @@ public class MainActivity extends AppCompatActivity {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
+                isWrite = true;
                 byte[] bytes = HexDump.hexStringToBytes(HexString);
                 int res = mSerial.write(bytes, bytes.length);
                 Log.d(TAG, " test " + res);
@@ -258,6 +286,8 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "setup2: fail to controlTransfer: " + res);
                     return;
                 }
+
+                isWrite = false;
 
                 Log.d(TAG, "Write length: " + bytes.length + " bytes" + "...." + HexDump.byteArrToHex(bytes, bytes.length));
                 Log.d(TAG, "Leave writeDataToSerial");
